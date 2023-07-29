@@ -59,6 +59,8 @@ namespace WixToolset.Core.Link
                 return;
             }
 
+            DirectorySymbol defaultInstallFolderSymbol = null;
+
             // Process all of the references contained in this section using the collection of
             // symbols provided.  Then recursively call this method to process the
             // located symbol's section.  All in all this is a very simple depth-first
@@ -110,8 +112,32 @@ namespace WixToolset.Core.Link
                 }
                 else
                 {
-                    this.Messaging.Write(ErrorMessages.UnresolvedReference(wixSimpleReferenceRow.SourceLineNumbers, wixSimpleReferenceRow.SymbolicName));
+                    // If the authoring references a directory with id `INSTALLFOLDER` and
+                    // the authoring does not _define_ it, conjure such a symbol with appropriate
+                    // default values.
+                    if (wixSimpleReferenceRow.SymbolicName == "Directory:INSTALLFOLDER"
+                        && defaultInstallFolderSymbol == null)
+                    {
+                        defaultInstallFolderSymbol = new DirectorySymbol(wixSimpleReferenceRow.SourceLineNumbers,
+                            new Identifier(AccessModifier.Global, "INSTALLFOLDER"))
+                        {
+                            ParentDirectoryRef = "ProgramFiles6432Folder",
+                            Name = "!(bind.Property.Manufacturer) !(bind.Property.ProductName)",
+                            SourceName = ".",
+                        };
+
+                        this.referencedSymbols.Add(new SymbolWithSection(null, defaultInstallFolderSymbol));
+                    }
+                    else
+                    {
+                        this.Messaging.Write(ErrorMessages.UnresolvedReference(wixSimpleReferenceRow.SourceLineNumbers, wixSimpleReferenceRow.SymbolicName));
+                    }
                 }
+            }
+
+            if (defaultInstallFolderSymbol != null)
+            {
+                section.AddSymbol(defaultInstallFolderSymbol);
             }
         }
 
